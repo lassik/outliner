@@ -2,25 +2,27 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
+using System.Windows.Forms;
 
 namespace Outliner
 {
     static class FileFormat
     {
-        byte[] magic = { 0xff, 0x00, 0x1a, 0x0d, 0x0a, 0x0a, 0x0d };
+        private static byte[] magic = { 0xff, 0x00, 0x1a, 0x0d, 0x0a, 0x0a, 0x0d };
 
-        string unisig = "4c356fea@net.lassikortela.treefile";
+        private const string unisig = "4c356fea@net.lassikortela.treefile";
 
-        string path = "treedata";
+        private const string path = "treedata";
 
-        Stream file;
+        private static Stream file;
 
-        void wbyte(int x)
+        private static void wbyte(int x)
         {
             file.WriteByte((byte)x);
         }
 
-        void wint(int x)
+        private static void wint(int x)
         {
             while (x > 0x7f)
             {
@@ -30,29 +32,29 @@ namespace Outliner
             wbyte(x);
         }
 
-        void wrawbytes(byte[] x)
+        private static void wrawbytes(byte[] x)
         {
             file.Write(x, 0, x.Length);
         }
 
-        void wcntbytes(byte[] x)
+        private static void wcntbytes(byte[] x)
         {
             wint(x.Length);
             wrawbytes(x);
         }
 
-        void wcntstring(string x)
+        private static void wcntstring(string x)
         {
             wcntbytes(new UTF8Encoding().GetBytes(x));
         }
 
-        void wunisig()
+        private static void wunisig()
         {
             wrawbytes(magic);
             wcntstring(unisig);
         }
 
-        void wnode(TreeNode x)
+        private static void wnode(TreeNode x)
         {
             wcntstring(x.Text);
             wint(x.Nodes.Count);
@@ -62,7 +64,7 @@ namespace Outliner
             }
         }
 
-        void write()
+        private static void write()
         {
             using (file = new FileStream(path, FileMode.Create))
             {
@@ -71,7 +73,7 @@ namespace Outliner
             }
         }
 
-        int rbyte()
+        private static int rbyte()
         {
             int by = file.ReadByte();
             if (by == -1)
@@ -81,7 +83,7 @@ namespace Outliner
             return by;
         }
 
-        int rint()
+        private static int rint()
         {
             int x = 0; int sh = 0; int by;
             for (; ; )
@@ -93,7 +95,7 @@ namespace Outliner
             }
         }
 
-        byte[] rrawbytes(int n)
+        private static byte[] rrawbytes(int n)
         {
             byte[] bytes = new byte[n];
             int nleft = n; int nread = 0;
@@ -109,12 +111,12 @@ namespace Outliner
             return bytes;
         }
 
-        string rcntstring()
+        private static string rcntstring()
         {
             return new UTF8Encoding().GetString(rrawbytes(rint()));
         }
 
-        void runisig()
+        private static void runisig()
         {
             if (!Util.ByteArraysEqual(magic, rrawbytes(magic.Length)))
             {
@@ -126,7 +128,7 @@ namespace Outliner
             }
         }
 
-        TreeNode rnode()
+        private static TreeNode rnode()
         {
             TreeNode tn = new TreeNode(rcntstring());
             for (int n = rint(); n > 0; --n)
@@ -136,7 +138,7 @@ namespace Outliner
             return tn;
         }
 
-        void read()
+        private static void read()
         {
             file = new FileStream(path, FileMode.Open);
             try
@@ -151,8 +153,5 @@ namespace Outliner
                 file.Close();
             }
         }
-
-
-
     }
 }
