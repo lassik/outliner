@@ -47,6 +47,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CalendarOps.cs" />
+    <Compile Include="FileFormat.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
