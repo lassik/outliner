@@ -7,16 +7,6 @@ namespace Outliner
 {
     static class FileFormat
     {
-        bool byteArraysEqual(byte[] a, byte[] b)
-        {
-            if (a.Length != b.Length)
-                return false;
-            for (int i = 0; i < a.Length; ++i)
-                if (a[i] != b[i])
-                    return false;
-            return true;
-        }
-
         byte[] magic = { 0xff, 0x00, 0x1a, 0x0d, 0x0a, 0x0a, 0x0d };
 
         string unisig = "4c356fea@net.lassikortela.treefile";
@@ -126,7 +116,7 @@ namespace Outliner
 
         void runisig()
         {
-            if (!byteArraysEqual(magic, rrawbytes(magic.Length)))
+            if (!Util.ByteArraysEqual(magic, rrawbytes(magic.Length)))
             {
                 throw new Exception("Bad magic");
             }
