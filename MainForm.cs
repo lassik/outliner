@@ -44,7 +44,7 @@ namespace Outliner
             TreeNode newRoot;
             using (var reader = new FileFormat.Reader(filename))
             {
-                 newRoot = reader.ReadTree();
+                newRoot = reader.ReadTree();
             }
             tv.Nodes.Clear();
             tv.Nodes.Add(newRoot);
