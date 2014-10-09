@@ -201,18 +201,7 @@ namespace Outliner
         void cmdSave()
         {
             write();
-            cmdDumpCalendarAsHTML(); 
-        }
-
-        delegate void TreeNodeMapFun(TreeNode N);
-
-        void EachNode(TreeNodeCollection Ns, TreeNodeMapFun F)
-        {
-            foreach (TreeNode N in Ns)
-            {
-                F(N); 
-                EachNode(N.Nodes, F); 
-            } 
+            CalendarOps.DumpCalendarAsHTML(tv.Nodes, path + "cal.html");
         }
 
         TreeNode ClipboardNode;

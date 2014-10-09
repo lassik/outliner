@@ -9,9 +9,9 @@ using System.IO;
 
 namespace Outliner
 {
-    class CalendarOps
+    static class CalendarOps
     {
-        int DayOfWeekISO(DateTime DT)
+        private static int DayOfWeekISO(DateTime DT)
         {
             int WD = (int)DT.DayOfWeek;
             if (WD == 0)
@@ -21,14 +21,14 @@ namespace Outliner
             return WD;
         }
 
-        int WeekOfYearISO(DateTime DT)
+        private static int WeekOfYearISO(DateTime DT)
         {
             DateTime NearestThu = DT.AddDays(4 - DayOfWeekISO(DT));
             DateTime Jan1 = new DateTime(NearestThu.Year, 1, 1);
             return NearestThu.Subtract(Jan1).Days / 7 + 1;
         }
 
-        static DateTime DateNow
+        private static DateTime DateNow
         {
             get
             {
@@ -37,7 +37,7 @@ namespace Outliner
             }
         }
 
-        static bool ParseDate(ref DateTime date, string ys, string ms, string ds)
+        private static bool ParseDate(ref DateTime date, string ys, string ms, string ds)
         {
             try
             {
@@ -52,7 +52,7 @@ namespace Outliner
             }
         }
 
-        class ParsedEvent
+        private class ParsedEvent
         {
             public bool HasDate;
 
@@ -113,13 +113,13 @@ namespace Outliner
             }
         }
 
-        private string EventHTML(ParsedEvent evt)
+        private static string EventHTML(ParsedEvent evt)
         {
             string htime = evt.HasTime ? "<b>" + evt.Time + "</b> " : "";
             return String.Format("<font color={0}>&bull; {1}{2}</font><br>", evt.Color, htime, evt.Text);
         }
 
-        class DayEventSorter : IComparer
+        private class DayEventSorter : IComparer
         {
             int IComparer.Compare(Object x, Object y)
             {
@@ -134,7 +134,7 @@ namespace Outliner
             }
         }
 
-        string ColorfulDateHTML(DateTime date)
+        private static string ColorfulDateHTML(DateTime date)
         {
             return "<center><b>" +
                 String.Format("<font color=gray>{0}</font>", date.Year) +
@@ -143,10 +143,10 @@ namespace Outliner
                 "</b></center>";
         }
 
-        Hashtable GetDayToEventsTable(TreeNodeCollection nodes)
+        private static Hashtable GetDayToEventsTable(TreeNodeCollection nodes)
         {
             Hashtable dayevts = new Hashtable();
-            EachNode(nodes,
+            Util.EachNode(nodes,
                      delegate(TreeNode node)
                      {
                          ParsedEvent evt = new ParsedEvent(node.Text);
@@ -165,7 +165,7 @@ namespace Outliner
             return dayevts;
         }
 
-        string DayEventsHTML(Hashtable dayevts, DateTime date)
+        private static string DayEventsHTML(Hashtable dayevts, DateTime date)
         {
             string s = "";
             ArrayList evts = (ArrayList)dayevts[date];
@@ -175,9 +175,9 @@ namespace Outliner
             return s;
         }
 
-        void DumpCalendarWeeks(StreamWriter Out, int nweeks, DateTime Day)
+        private static void DumpCalendarWeeks(StreamWriter Out, TreeNodeCollection nodes, int nweeks, DateTime Day)
         {
-            Hashtable dayevts = GetDayToEventsTable(tv.Nodes);
+            Hashtable dayevts = GetDayToEventsTable(nodes);
             Out.Write("<table border=1 width=100% height=100%>");
             Out.Write("<tr><th><font color=red>&hearts;</font></th>");
             for (int wd = 1; wd <= 7; wd++) Out.Write(String.Format("<th width=14%>{0}</th>", wd));
@@ -197,14 +197,14 @@ namespace Outliner
             Out.Write("</table>");
         }
 
-        void cmdDumpCalendarAsHTML()
+        public static void DumpCalendarAsHTML(TreeNodeCollection nodes, string htmlFilename)
         {
-            using (StreamWriter Out = File.CreateText(path + "cal.html"))
+            using (StreamWriter Out = File.CreateText(htmlFilename))
             {
                 Out.Write("<title>Calendar</title>");
                 Out.Write("<meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\">");
                 Out.Write("<body style=\"font-family: sans-serif;\">");
-                DumpCalendarWeeks(Out, 12, DateTime.Now);
+                DumpCalendarWeeks(Out, nodes, 12, DateTime.Now);
             }
         }
     }
