@@ -15,6 +15,8 @@ namespace Outliner
 {
     public partial class MainForm : Form
     {
+        private const string filename = "treedata";
+
         EventHandler cmdHandler(Cmd cmd) 
         {
             return delegate(object sender, System.EventArgs e) 
@@ -39,13 +41,14 @@ namespace Outliner
 
         void cmdRevert() 
         {
-            read(); 
+            tv.Nodes.Clear();
+            tv.Nodes.Add(FileFormat.ReadTreeFromFile(filename));
         }
 
         void cmdSave()
         {
             write();
-            CalendarOps.DumpCalendarAsHTML(tv.Nodes, path + "cal.html");
+            CalendarOps.DumpCalendarAsHTML(tv.Nodes, filename + "cal.html");
         }
 
         TreeNode ClipboardNode;

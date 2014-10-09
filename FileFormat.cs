@@ -13,8 +13,6 @@ namespace Outliner
 
         private const string unisig = "4c356fea@net.lassikortela.treefile";
 
-        private const string path = "treedata";
-
         private static Stream file;
 
         private static void wbyte(int x)
@@ -138,19 +136,12 @@ namespace Outliner
             return tn;
         }
 
-        private static void read()
+        public static TreeNode ReadTreeFromFile(string filename)
         {
-            file = new FileStream(path, FileMode.Open);
-            try
+            using (var file = new FileStream(filename, FileMode.Open))
             {
                 runisig();
                 TreeNode newRoot = rnode();
-                tv.Nodes.Clear();
-                tv.Nodes.Add(newRoot);
-            }
-            finally
-            {
-                file.Close();
             }
         }
     }
