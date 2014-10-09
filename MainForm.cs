@@ -41,13 +41,22 @@ namespace Outliner
 
         void cmdRevert() 
         {
+            TreeNode newRoot;
+            using (var reader = new FileFormat.Reader(filename))
+            {
+                 newRoot = reader.ReadTree();
+            }
             tv.Nodes.Clear();
-            tv.Nodes.Add(FileFormat.ReadTreeFromFile(filename));
+            tv.Nodes.Add(newRoot);
         }
 
         void cmdSave()
         {
-            write();
+            TreeNode root = tv.Nodes[0];
+            using (var writer = new FileFormat.Writer(filename))
+            {
+                writer.WriteTree(root);
+            }
             CalendarOps.DumpCalendarAsHTML(tv.Nodes, filename + "cal.html");
         }
 
@@ -355,7 +364,7 @@ namespace Outliner
             addToMenu(menuView, "Collapse One Level", cmdNoop, Shortcut.None);
             addToMenu(menuView, "Collapse All Levels", cmdNoop, Shortcut.None);
 
-            read(); 
+            cmdRevert();
         }
 
     }

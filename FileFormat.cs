@@ -13,14 +13,16 @@ namespace Outliner
 
         private const string unisig = "4c356fea@net.lassikortela.treefile";
 
-        private static Stream file;
+        public class Writer : IDisposable
+        {
+        private Stream file;
 
-        private static void wbyte(int x)
+        private void wbyte(int x)
         {
             file.WriteByte((byte)x);
         }
 
-        private static void wint(int x)
+        private void wint(int x)
         {
             while (x > 0x7f)
             {
@@ -30,29 +32,29 @@ namespace Outliner
             wbyte(x);
         }
 
-        private static void wrawbytes(byte[] x)
+        private void wrawbytes(byte[] x)
         {
             file.Write(x, 0, x.Length);
         }
 
-        private static void wcntbytes(byte[] x)
+        private void wcntbytes(byte[] x)
         {
             wint(x.Length);
             wrawbytes(x);
         }
 
-        private static void wcntstring(string x)
+        private void wcntstring(string x)
         {
             wcntbytes(new UTF8Encoding().GetBytes(x));
         }
 
-        private static void wunisig()
+        private void wunisig()
         {
             wrawbytes(magic);
             wcntstring(unisig);
         }
 
-        private static void wnode(TreeNode x)
+        private void wnode(TreeNode x)
         {
             wcntstring(x.Text);
             wint(x.Nodes.Count);
@@ -62,16 +64,32 @@ namespace Outliner
             }
         }
 
-        private static void write()
+        public Writer(string filename)
         {
-            using (file = new FileStream(path, FileMode.Create))
-            {
-                wunisig();
-                wnode(tv.Nodes[0]);
-            }
+            this.file = new FileStream(filename, FileMode.Create);
         }
 
-        private static int rbyte()
+        public void WriteTree(TreeNode root)
+        {
+                wunisig();
+                wnode(root);
+        }
+
+        public void Dispose()
+        {
+            if (this.file != null)
+            {
+                this.file.Dispose();
+                this.file = null;
+            }
+        }
+        }
+
+        public class Reader : IDisposable
+        {
+        private Stream file;
+
+        private int rbyte()
         {
             int by = file.ReadByte();
             if (by == -1)
@@ -81,7 +99,7 @@ namespace Outliner
             return by;
         }
 
-        private static int rint()
+        private int rint()
         {
             int x = 0; int sh = 0; int by;
             for (; ; )
@@ -93,7 +111,7 @@ namespace Outliner
             }
         }
 
-        private static byte[] rrawbytes(int n)
+        private byte[] rrawbytes(int n)
         {
             byte[] bytes = new byte[n];
             int nleft = n; int nread = 0;
@@ -109,12 +127,12 @@ namespace Outliner
             return bytes;
         }
 
-        private static string rcntstring()
+        private string rcntstring()
         {
             return new UTF8Encoding().GetString(rrawbytes(rint()));
         }
 
-        private static void runisig()
+        private void runisig()
         {
             if (!Util.ByteArraysEqual(magic, rrawbytes(magic.Length)))
             {
@@ -126,7 +144,7 @@ namespace Outliner
             }
         }
 
-        private static TreeNode rnode()
+        private TreeNode rnode()
         {
             TreeNode tn = new TreeNode(rcntstring());
             for (int n = rint(); n > 0; --n)
@@ -136,13 +154,25 @@ namespace Outliner
             return tn;
         }
 
-        public static TreeNode ReadTreeFromFile(string filename)
+        public Reader(string filename)
         {
-            using (var file = new FileStream(filename, FileMode.Open))
-            {
+            this.file = new FileStream(filename, FileMode.Open);
+        }
+
+        public TreeNode ReadTree()
+        {
                 runisig();
-                TreeNode newRoot = rnode();
+                return rnode();
+        }
+
+        public void Dispose()
+        {
+            if (this.file != null)
+            {
+                this.file.Dispose();
+                this.file = null;
             }
+        }
         }
     }
 }
