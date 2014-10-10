@@ -11,87 +11,82 @@ namespace Outliner
 {
     static class CalendarOps
     {
-        private static int DayOfWeekISO(DateTime DT)
+        private static int DayOfWeekISO(DateTime dt)
         {
-            int WD = (int)DT.DayOfWeek;
-            if (WD == 0)
-            {
-                return 7;
-            }
-            return WD;
+            var wd = (int)dt.DayOfWeek;
+            if (wd == 0) { return 7; }
+            return wd;
         }
 
-        private static int WeekOfYearISO(DateTime DT)
+        private static int WeekOfYearISO(DateTime dt)
         {
-            DateTime NearestThu = DT.AddDays(4 - DayOfWeekISO(DT));
-            DateTime Jan1 = new DateTime(NearestThu.Year, 1, 1);
-            return NearestThu.Subtract(Jan1).Days / 7 + 1;
+            var nearestThursday = dt.AddDays(4 - DayOfWeekISO(dt));
+            var january1 = new DateTime(nearestThursday.Year, 1, 1);
+            return nearestThursday.Subtract(january1).Days / 7 + 1;
         }
 
         private static DateTime DateNow
         {
             get
             {
-                DateTime dt = DateTime.Now;
+                var dt = DateTime.Now;
                 return new DateTime(dt.Year, dt.Month, dt.Day);
             }
         }
 
-        private static bool ParseDate(ref DateTime date, string ys, string ms, string ds)
+        private static bool ParseDate(out DateTime date, string yearStr,
+            string monthStr, string dayStr)
         {
+            date = DateTime.MinValue;
             try
             {
-                date = new DateTime(Convert.ToInt32(ys),
-                                    Convert.ToInt32(ms),
-                                    Convert.ToInt32(ds));
+                date = new DateTime(Convert.ToInt32(yearStr),
+                                    Convert.ToInt32(monthStr),
+                                    Convert.ToInt32(dayStr));
                 return true;
             }
-            catch (ArgumentOutOfRangeException exception)
-            {
-                return false;
-            }
+            catch (ArgumentOutOfRangeException) { }
+            return false;
         }
 
         private class ParsedEvent
         {
-            public bool HasDate;
+            public bool HasDate { get; private set; }
 
-            public bool HasTime
+            public bool HasTime { get { return Time != null; } }
+
+            public DateTime Date { get; private set; }
+
+            public string Time { get; private set; }
+
+            public string GivenColor { get; private set; }
+
+            public string Text { get; private set; }
+
+            public ParsedEvent(string str)
             {
-                get
-                {
-                    return Time != null;
-                }
-            }
-
-            public DateTime Date;
-
-            public string Time;
-
-            public string GivenColor;
-
-            public string Text;
-
-            public ParsedEvent(string s)
-            {
-                Text = s;
                 Match match;
+                Text = str;
+
                 match = Regex.Match(Text, @"^(\d{4})-(\d{2})-(\d{2}) +(.*)$");
                 if (match.Success)
                 {
-                    HasDate = ParseDate(ref Date,
+                    DateTime date;
+                    HasDate = ParseDate(out date,
                                         match.Groups[1].Value,
                                         match.Groups[2].Value,
                                         match.Groups[3].Value);
-                    if (HasDate)
-                        Text = match.Groups[4].Value;
+                    Date = date;
+                    if (HasDate) { Text = match.Groups[4].Value; }
                 }
+
                 match = Regex.Match(Text, @"^(\d[\d:-]+) +(.*)$");
                 if (match.Success)
                 {
                     Time = match.Groups[1].Value;
                     Text = match.Groups[2].Value;
                 }
+
                 match = Regex.Match(Text, @"^(.*) *\[(.*?)\]$");
                 if (match.Success)
                 {
@@ -104,10 +99,8 @@ namespace Outliner
             {
                 get
                 {
-                    if (HasDate && (Date < DateNow))
-                        return "gray";
-                    if (GivenColor != null)
-                        return GivenColor;
+                    if (HasDate && (Date < DateNow)) { return "gray"; }
+                    if (GivenColor != null) { return GivenColor; }
                     return "black";
                 }
             }
@@ -115,23 +108,28 @@ namespace Outliner
 
         private static string EventHTML(ParsedEvent evt)
         {
-            string htime = evt.HasTime ? "<b>" + evt.Time + "</b> " : "";
-            return String.Format("<font color={0}>&bull; {1}{2}</font><br>", evt.Color, htime, evt.Text);
+            var htime = evt.HasTime ? "<b>" + evt.Time + "</b> " : "";
+            return String.Format("<font color={0}>&bull; {1}{2}</font><br>",
+                evt.Color, htime, evt.Text);
         }
 
-        private class DayEventSorter : IComparer
+        private class DayEventSorter : IComparer<ParsedEvent>
         {
-            int IComparer.Compare(Object x, Object y)
+            private static readonly CaseInsensitiveComparer strcmp =
+                new CaseInsensitiveComparer();
+
+            public int Compare(ParsedEvent a, ParsedEvent b)
             {
-                ParsedEvent ex = (ParsedEvent)x;
-                ParsedEvent ey = (ParsedEvent)y;
-                if (ex == null || ey == null) return 0;
-                //MessageBox.Show(String.Format("Comparing {0} and {1}", ex, ey));
-                if (ex == ey) return 0;
-                if (!ex.HasTime) return -1;
-                if (!ey.HasTime) return 1;
-                return new CaseInsensitiveComparer().Compare(ex.Time, ey.Time);
+                if ((a == null) || (b == null)) { return 0; }
+                if (a == b) { return 0; }
+                if (!a.HasTime) { return -1; }
+                if (!b.HasTime) { return 1; }
+                return strcmp.Compare(a.Time, b.Time);
             }
+
+            private DayEventSorter() { }
+
+            public static readonly DayEventSorter Instance = new DayEventSorter();
         }
 
         private static string ColorfulDateHTML(DateTime date)
@@ -143,68 +141,79 @@ namespace Outliner
                 "</b></center>";
         }
 
-        private static Hashtable GetDayToEventsTable(TreeNodeCollection nodes)
+        private static Dictionary<DateTime, List<ParsedEvent>> GetDayToEventsTable(TreeNodeCollection nodes)
         {
-            Hashtable dayevts = new Hashtable();
+            var dayToEvents = new Dictionary<DateTime, List<ParsedEvent>>();
+
             Util.EachNode(nodes,
-                     delegate(TreeNode node)
-                     {
-                         ParsedEvent evt = new ParsedEvent(node.Text);
-                         if (evt.HasDate)
-                         {
-                             if (dayevts[evt.Date] == null)
-                                 dayevts[evt.Date] = new ArrayList();
-                             ((ArrayList)dayevts[evt.Date]).Add(evt);
-                         }
-                     });
-            foreach (DateTime date in dayevts.Keys)
-            {
-                ((ArrayList)dayevts[date]).Sort(new DayEventSorter());
-                //events.ToArray(typeof(ParsedEvent)) as ParsedEvent[]
-            }
-            return dayevts;
-        }
-
-        private static string DayEventsHTML(Hashtable dayevts, DateTime date)
-        {
-            string s = "";
-            ArrayList evts = (ArrayList)dayevts[date];
-            if (evts != null)
-                foreach (ParsedEvent evt in evts)
-                    s += EventHTML(evt);
-            return s;
-        }
-
-        private static void DumpCalendarWeeks(StreamWriter Out, TreeNodeCollection nodes, int nweeks, DateTime Day)
-        {
-            Hashtable dayevts = GetDayToEventsTable(nodes);
-            Out.Write("<table border=1 width=100% height=100%>");
-            Out.Write("<tr><th><font color=red>&hearts;</font></th>");
-            for (int wd = 1; wd <= 7; wd++) Out.Write(String.Format("<th width=14%>{0}</th>", wd));
-            Out.Write("</tr>");
-            Day = new DateTime(Day.Year, Day.Month, Day.Day);
-            Day = Day.AddDays(-DayOfWeekISO(Day) + 1);
-            for (; nweeks > 0; nweeks--)
-            {
-                Out.Write(String.Format("<tr height=200><th>W{0:00}</th>", WeekOfYearISO(Day)));
-                for (int wd = 1; wd <= 7; wd++)
+                delegate(TreeNode node)
                 {
-                    Out.Write(String.Format("<td valign=top>{0}{1}</td>", ColorfulDateHTML(Day), DayEventsHTML(dayevts, Day)));
-                    Day = Day.AddDays(1);
-                }
-                Out.Write("</tr>");
+                    var evt = new ParsedEvent(node.Text);
+                    if (evt.HasDate)
+                    {
+                        if (dayToEvents[evt.Date] == null)
+                        {
+                            dayToEvents[evt.Date] = new List<ParsedEvent>();
+                        }
+                        dayToEvents[evt.Date].Add(evt);
+                    }
+                });
+
+            foreach (var date in dayToEvents.Keys)
+            {
+                dayToEvents[date].Sort(DayEventSorter.Instance);
             }
-            Out.Write("</table>");
+            return dayToEvents;
+        }
+
+        private static string DayEventsHTML(Dictionary<DateTime, List<ParsedEvent>> dayToEvents, DateTime date)
+        {
+            var html = new StringBuilder();
+            var events = dayToEvents[date];
+            if (events != null)
+            {
+                foreach (var evt in events)
+                {
+                    html.Append(EventHTML(evt));
+                }
+            }
+            return html.ToString();
+        }
+
+        private static void DumpCalendarWeeks(StreamWriter output, TreeNodeCollection nodes, int nWeeks, DateTime day)
+        {
+            var dayToEvents = GetDayToEventsTable(nodes);
+            output.Write("<table border=1 width=100% height=100%>");
+            output.Write("<tr><th><font color=red>&hearts;</font></th>");
+            for (var wd = 1; wd <= 7; wd++)
+            {
+                output.Write(String.Format("<th width=14%>{0}</th>", wd));
+            }
+            output.Write("</tr>");
+            day = new DateTime(day.Year, day.Month, day.Day);
+            day = day.AddDays(-DayOfWeekISO(day) + 1);
+            while (nWeeks > 0)
+            {
+                output.Write(String.Format("<tr height=200><th>W{0:00}</th>", WeekOfYearISO(day)));
+                for (var wd = 1; wd <= 7; wd++)
+                {
+                    output.Write(String.Format("<td valign=top>{0}{1}</td>", ColorfulDateHTML(day), DayEventsHTML(dayToEvents, day)));
+                    day = day.AddDays(1);
+                }
+                output.Write("</tr>");
+                nWeeks--;
+            }
+            output.Write("</table>");
         }
 
         public static void DumpCalendarAsHTML(TreeNodeCollection nodes, string htmlFilename)
         {
-            using (StreamWriter Out = File.CreateText(htmlFilename))
+            using (var output = File.CreateText(htmlFilename))
             {
-                Out.Write("<title>Calendar</title>");
-                Out.Write("<meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\">");
-                Out.Write("<body style=\"font-family: sans-serif;\">");
-                DumpCalendarWeeks(Out, nodes, 12, DateTime.Now);
+                output.Write("<title>Calendar</title>");
+                output.Write("<meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\">");
+                output.Write("<body style=\"font-family: sans-serif;\">");
+                DumpCalendarWeeks(output, nodes, 12, DateTime.Now);
             }
         }
     }
