@@ -34,24 +34,23 @@ namespace Outliner
             }
         }
 
-        private static bool ParseDate(out DateTime date, string yearStr,
-            string monthStr, string dayStr)
+        private static DateTime ParseDate(string yearStr, string monthStr,
+            string dayStr)
         {
-            date = DateTime.MinValue;
             try
             {
-                date = new DateTime(Convert.ToInt32(yearStr),
-                                    Convert.ToInt32(monthStr),
-                                    Convert.ToInt32(dayStr));
-                return true;
+                return new DateTime(
+                    Convert.ToInt32(yearStr),
+                    Convert.ToInt32(monthStr),
+                    Convert.ToInt32(dayStr));
             }
             catch (ArgumentOutOfRangeException) { }
-            return false;
+            return DateTime.MinValue;
         }
 
         private class ParsedEvent
         {
-            public bool HasDate { get; private set; }
+            public bool HasDate { get { return Date > DateTime.MinValue; } }
 
             public bool HasTime { get { return Time != null; } }
 
@@ -71,12 +70,10 @@ namespace Outliner
                 match = Regex.Match(Text, @"^(\d{4})-(\d{2})-(\d{2}) +(.*)$");
                 if (match.Success)
                 {
-                    DateTime date;
-                    HasDate = ParseDate(out date,
-                                        match.Groups[1].Value,
-                                        match.Groups[2].Value,
-                                        match.Groups[3].Value);
-                    Date = date;
+                    Date = ParseDate(
+                        match.Groups[1].Value,
+                        match.Groups[2].Value,
+                        match.Groups[3].Value);
                     if (HasDate) { Text = match.Groups[4].Value; }
                 }
 
