@@ -9,58 +9,58 @@ namespace Outliner
 {
     static class FileFormat
     {
-        private static byte[] magic = { 0xff, 0x00, 0x1a, 0x0d, 0x0a, 0x0a, 0x0d };
+        private static readonly byte[] SignatureMagicNumber = { 0xff, 0x00, 0x1a, 0x0d, 0x0a, 0x0a, 0x0d };
 
-        private const string unisig = "4c356fea@net.lassikortela.treefile";
+        private const string SignatureFormatName = "4c356fea@net.lassikortela.treefile";
 
         public class Writer : IDisposable
         {
             private Stream file;
 
-            private void wbyte(int x)
+            private void WriteRawByte(int byt)
             {
-                file.WriteByte((byte)x);
+                file.WriteByte((byte)byt);
             }
 
-            private void wint(int x)
+            private void WriteNonnegativeInt(int value)
             {
-                while (x > 0x7f)
+                while (value > 0x7f)
                 {
-                    wbyte(0x80 | (x & 0x7f));
-                    x >>= 7;
+                    WriteRawByte(0x80 | (value & 0x7f));
+                    value >>= 7;
                 }
-                wbyte(x);
+                WriteRawByte(value);
             }
 
-            private void wrawbytes(byte[] x)
+            private void WriteRawBytes(byte[] bytes)
             {
-                file.Write(x, 0, x.Length);
+                file.Write(bytes, 0, bytes.Length);
             }
 
-            private void wcntbytes(byte[] x)
+            private void WriteCountedBytes(byte[] bytes)
             {
-                wint(x.Length);
-                wrawbytes(x);
+                WriteNonnegativeInt(bytes.Length);
+                WriteRawBytes(bytes);
             }
 
-            private void wcntstring(string x)
+            private void WriteCountedString(string str)
             {
-                wcntbytes(new UTF8Encoding().GetBytes(x));
+                WriteCountedBytes(new UTF8Encoding().GetBytes(str));
             }
 
-            private void wunisig()
+            private void WriteFileFormatSignature()
             {
-                wrawbytes(magic);
-                wcntstring(unisig);
+                WriteRawBytes(SignatureMagicNumber);
+                WriteCountedString(SignatureFormatName);
             }
 
-            private void wnode(TreeNode x)
+            private void WriteTreeNode(TreeNode node)
             {
-                wcntstring(x.Text);
-                wint(x.Nodes.Count);
-                foreach (TreeNode tn in x.Nodes)
+                WriteCountedString(node.Text);
+                WriteNonnegativeInt(node.Nodes.Count);
+                foreach (TreeNode subnode in node.Nodes)
                 {
-                    wnode(tn);
+                    WriteTreeNode(subnode);
                 }
             }
 
@@ -71,8 +71,8 @@ namespace Outliner
 
             public void WriteTree(TreeNode root)
             {
-                wunisig();
-                wnode(root);
+                WriteFileFormatSignature();
+                WriteTreeNode(root);
             }
 
             public void Dispose()
@@ -89,69 +89,80 @@ namespace Outliner
         {
             private Stream file;
 
-            private int rbyte()
+            private int ReadRawByte()
             {
-                int by = file.ReadByte();
-                if (by == -1)
+                var byt = file.ReadByte();
+                if (byt == -1)
                 {
                     throw new Exception("Premature end of file 1");
                 }
-                return by;
+                return byt;
             }
 
-            private int rint()
+            private int ReadNonnegativeInt()
             {
-                int x = 0; int sh = 0; int by;
-                for (; ; )
+                var value = 0;
+                var shift = 0;
+                while (true)
                 {
-                    by = rbyte();
-                    x |= (by & 0x7f) << sh;
-                    sh += 7;
-                    if (0 == (by & 0x80)) return x;
+                    var byt = ReadRawByte();
+                    value |= (byt & 0x7f) << shift;
+                    shift += 7;
+                    if (0 == (byt & 0x80)) break;
                 }
+                return value;
             }
 
-            private byte[] rrawbytes(int n)
+            private byte[] ReadRawBytes(int n)
             {
-                byte[] bytes = new byte[n];
-                int nleft = n; int nread = 0;
+                var bytes = new byte[n];
+                var ndone = 0;
+                var nleft = n;
                 while (nleft > 0)
                 {
-                    n = file.Read(bytes, nread, nleft);
+                    n = file.Read(bytes, ndone, nleft);
                     if (n == 0)
                     {
-                        throw new Exception("Premature end of file n");
+                        throw new Exception("Corrupt file: File ends too soon");
                     }
-                    nread += n; nleft -= n;
+                    ndone += n;
+                    nleft -= n;
                 }
                 return bytes;
             }
 
-            private string rcntstring()
+            private byte[] ReadCountedBytes()
             {
-                return new UTF8Encoding().GetString(rrawbytes(rint()));
+                return ReadRawBytes(ReadNonnegativeInt());
             }
 
-            private void runisig()
+            private string ReadCountedString()
             {
-                if (!Util.ByteArraysEqual(magic, rrawbytes(magic.Length)))
+                return new UTF8Encoding().GetString(ReadCountedBytes());
+            }
+
+            private void ReadFileFormatSignature()
+            {
+                var valid =
+                    Util.ByteArraysEqual(SignatureMagicNumber,
+                        ReadRawBytes(SignatureMagicNumber.Length)) &&
+                    (ReadCountedString() == SignatureFormatName);
+                if (!valid)
                 {
-                    throw new Exception("Bad magic");
-                }
-                if (rcntstring() != unisig)
-                {
-                    throw new Exception("Bad signature");
+                    throw new Exception("Corrupt file: Incorrect file format signature");
                 }
             }
 
-            private TreeNode rnode()
+            private TreeNode ReadTreeNode()
             {
-                TreeNode tn = new TreeNode(rcntstring());
-                for (int n = rint(); n > 0; --n)
+                var node = new TreeNode(ReadCountedString());
+                var n = ReadNonnegativeInt();
+                while (n > 0)
                 {
-                    tn.Nodes.Add(rnode());
+                    node.Nodes.Add(ReadTreeNode());
+                    n--;
                 }
-                return tn;
+                return node;
             }
 
             public Reader(string filename)
@@ -161,8 +172,8 @@ namespace Outliner
 
             public TreeNode ReadTree()
             {
-                runisig();
-                return rnode();
+                ReadFileFormatSignature();
+                return ReadTreeNode();
             }
 
             public void Dispose()
