@@ -94,7 +94,7 @@ namespace Outliner
                 var byt = file.ReadByte();
                 if (byt == -1)
                 {
-                    throw new Exception("Premature end of file 1");
+                    throw new Exception("Corrupt file: File ends too soon");
                 }
                 return byt;
             }
