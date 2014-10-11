@@ -163,10 +163,11 @@ namespace Outliner
             return dayToEvents;
         }
 
-        private static string EventsHTML(List<ParsedEvent> events)
+        private static string DayEventsHTML(Dictionary<DateTime, List<ParsedEvent>> dayToEvents, DateTime day)
         {
             var html = new StringBuilder();
-            if (events != null)
+            List<ParsedEvent> events;
+            if (dayToEvents.TryGetValue(day, out events))
             {
                 foreach (var evt in events)
                 {
@@ -196,7 +197,7 @@ namespace Outliner
                 for (var weekday = 1; weekday <= 7; weekday++)
                 {
                     output.Write("<td valign=top>" + ColorfulDateHTML(day) +
-                        EventsHTML(dayToEvents[day]) + "</td>");
+                        DayEventsHTML(dayToEvents, day) + "</td>");
                     day = day.AddDays(1);
                 }
                 output.Write("</tr>");
